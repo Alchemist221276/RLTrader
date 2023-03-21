@@ -1,0 +1,6 @@
+<RCC>
+  <qresource prefix="icons">
+    <file>icons/skip_next_FILL0_wght400_GRAD0_opsz48.svg</file>
+    <file>icons/skip_previous_FILL0_wght400_GRAD0_opsz48.svg</file>
+  </qresource>
+</RCC>
