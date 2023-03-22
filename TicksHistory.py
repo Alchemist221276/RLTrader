@@ -140,21 +140,21 @@ class TicksHistory:
     ask = property(get_ask)
     #endregion ask property
     
-    #region symbol_property
+    #region symbol property
     def get_symbol(self):
         return self._symbol
 
     symbol = property(get_symbol)
-    #endregion symbol_property
+    #endregion symbol property
 
-    #region ticks_property
+    #region ticks property
     def get_ticks(self):
         return self._ticks
 
     ticks = property(get_ticks)
-    #endregion ticks_property
+    #endregion ticks property
     
-    #region tick_index_property
+    #region tick_index property
     def get_tick_index(self):
         return self._tick_index
 
@@ -164,16 +164,16 @@ class TicksHistory:
         self._tick_index = tick_index
 
     tick_index = property(get_tick_index, set_tick_index)
-    #endregion ticks_index_property
+    #endregion ticks_index property
 
-    #region cur_file_ext
+    #region cur_file_ext property
     def get_cur_file_ext(self):
         return os.path.splitext(self._cur_filename)[1]
 
     cur_file_ext = property(get_cur_file_ext)
-    #endregion cur_file_ext
+    #endregion cur_file_ext property
 
-    #region cur_filename_property
+    #region cur_filename property
     def get_cur_filename(self):
         return self._cur_filename
 
@@ -182,7 +182,17 @@ class TicksHistory:
         self.load_cur_file()
 
     cur_filename = property(get_cur_filename, set_cur_filename)
-    #endregion cur_filename_property
+    #endregion cur_filename property
+
+    #region accuracy property
+    def get_accuracy(self):
+        return self._accuracy
+
+    def set_accuracy(self, value):
+        self._accuracy = value
+
+    accuracy = property(get_accuracy, set_accuracy)
+    #endregion accuracy property
 
     def go_to_prev_day(self):
         files_list = self.get_ticks_files_list()
