@@ -452,9 +452,21 @@ class TradingState:
     def get_next_zigzag_price(self, search_params):
         if search_params['point_index'] is None:
             for cur_point_index in range(len(self._zigzag['date'])):
-                if (self._zigzag['date'][cur_point_index] == search_params['date'] and self._zigzag['tick_index'][cur_point_index] > search_params['tick_index']) or (self._zigzag['date'][cur_point_index] > search_params['date']):
-                    #search_params['point_index'] = cur_point_index
+                if (self._zigzag['date'][cur_point_index].date() == search_params['date'].date() and self._zigzag['tick_index'][cur_point_index] > search_params['tick_index']) or (self._zigzag['date'][cur_point_index].date() > search_params['date'].date()):
+                    if search_params['direction'] < 0:
+                        search_params['point_index'] = cur_point_index
                     return self._zigzag['price'][cur_point_index]
+        else:
+            #TODO: Write optimization in TradingState.get_next_zigzag_price() for backward calculation
+            if search_params['direction'] < 0:
+                cur_point_index = search_params['point_index']
+                if cur_point_index > 0:
+                    prev_point_index = cur_point_index - 1
+                    if (self._zigzag['date'][prev_point_index].date() == search_params['date'].date() and self._zigzag['tick_index'][prev_point_index] > search_params['tick_index']) or (self._zigzag['date'][prev_point_index].date() > search_params['date'].date()):
+                        search_params['point_index'] = prev_point_index
+                        return self._zigzag['price'][prev_point_index]
+                return self._zigzag['price'][cur_point_index]
+            #TODO: Write optimization in TradingState.get_next_zigzag_price() for forward calculation
         return None
 
     def get_backward_ticks(self, ticks_count=None):
