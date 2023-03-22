@@ -58,11 +58,21 @@ class MainForm(QMainWindow):
 
         self.ui.ticks_frame_bid_ask_percents_canvas = MPLQTCanvas()
         self.ui.ticks_frame_bid_ask_percents_canvas.setMaximumSize(QSize(16777215, 100))
+        self.ui.ticks_frame_bid_ask_percents_canvas.setVisible(False)
         self.ui.ticks_frame_chart_layout.addWidget(self.ui.ticks_frame_bid_ask_percents_canvas)
 
-        self.ui.ticks_frame_bid_ask_neuroinputs = MPLQTCanvas()
-        self.ui.ticks_frame_bid_ask_neuroinputs.setMaximumSize(QSize(16777215, 100))
-        self.ui.ticks_frame_chart_layout.addWidget(self.ui.ticks_frame_bid_ask_neuroinputs)
+        self.ui.ticks_frame_bid_ask_percents_neuroinputs = MPLQTCanvas()
+        self.ui.ticks_frame_bid_ask_percents_neuroinputs.setMaximumSize(QSize(16777215, 100))
+        self.ui.ticks_frame_bid_ask_percents_neuroinputs.setVisible(False)
+        self.ui.ticks_frame_chart_layout.addWidget(self.ui.ticks_frame_bid_ask_percents_neuroinputs)
+
+        self.ui.ticks_frame_bid_ask_points_canvas = MPLQTCanvas()
+        self.ui.ticks_frame_bid_ask_points_canvas.setMaximumSize(QSize(16777215, 100))
+        self.ui.ticks_frame_chart_layout.addWidget(self.ui.ticks_frame_bid_ask_points_canvas)
+
+        self.ui.ticks_frame_bid_ask_points_neuroinputs = MPLQTCanvas()
+        self.ui.ticks_frame_bid_ask_points_neuroinputs.setMaximumSize(QSize(16777215, 100))
+        self.ui.ticks_frame_chart_layout.addWidget(self.ui.ticks_frame_bid_ask_points_neuroinputs)
         #endregion Charts canvases initialization
 
         #region Trading state initialization
@@ -96,15 +106,29 @@ class MainForm(QMainWindow):
         self.trading_state.plot_ticks_bid_ask_percents(axes=canvas.figure.gca(), labels_and_grid=True)
         canvas.draw()
 
-    def update_ticks_frame_bid_ask_neuroinputs_chart_canvas(self):
-        canvas = self.ui.ticks_frame_bid_ask_neuroinputs
-        self.trading_state.plot_ticks_bid_ask_neuroinputs(axes=canvas.figure.gca(), labels_and_grid=True)
+    def update_ticks_frame_points_chart_canvas(self):
+        canvas = self.ui.ticks_frame_bid_ask_points_canvas
+        self.trading_state.plot_ticks_bid_ask_points(axes=canvas.figure.gca(), labels_and_grid=True)
+        canvas.draw()
+
+    def update_ticks_frame_bid_ask_percents_neuroinputs_chart_canvas(self):
+        canvas = self.ui.ticks_frame_bid_ask_percents_neuroinputs
+        self.trading_state.plot_ticks_bid_ask_percents_neuroinputs(axes=canvas.figure.gca(), labels_and_grid=True)
+        canvas.draw()
+
+    def update_ticks_frame_bid_ask_points_neuroinputs_chart_canvas(self):
+        canvas = self.ui.ticks_frame_bid_ask_points_neuroinputs
+        self.trading_state.plot_ticks_bid_ask_points_neuroinputs(axes=canvas.figure.gca(), labels_and_grid=True)
         canvas.draw()
 
     def update_canvases(self):
         self.update_ticks_frame_prices_chart_canvas()
+
         self.update_ticks_frame_percents_chart_canvas()
-        self.update_ticks_frame_bid_ask_neuroinputs_chart_canvas()
+        self.update_ticks_frame_bid_ask_percents_neuroinputs_chart_canvas()
+
+        self.update_ticks_frame_points_chart_canvas()
+        self.update_ticks_frame_bid_ask_points_neuroinputs_chart_canvas()
 
     def ticks_frame_pageup(self):
         self.trading_state.jump_forward(self._page_scroll_amount)

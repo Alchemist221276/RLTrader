@@ -270,8 +270,10 @@ class TradingState:
             tick_date=None,
             tick_index=None,
             ticks_frame_size=8192,
-            bid_ask_neuroinputs_resolution=16,
-            bid_ask_neuroinputs_k=5000,
+            bid_ask_percents_neuroinputs_resolution=16,
+            bid_ask_percents_neuroinputs_k=5000,
+            bid_ask_points_neuroinputs_resolution=16,
+            bid_ask_points_neuroinputs_k=0.01,
             look_forward_ticks=1024,
             ema_period=1000,
             accuracy=5
@@ -286,8 +288,10 @@ class TradingState:
         self._ticks = self.create_ticks()
         self._neuroinputs = self.create_neuroinputs()
         self._forward_ticks = self.create_ticks()
-        self._bid_ask_neuroinputs_resolution = bid_ask_neuroinputs_resolution
-        self._bid_ask_neuroinputs_k = bid_ask_neuroinputs_k
+        self._bid_ask_percents_neuroinputs_resolution = bid_ask_percents_neuroinputs_resolution
+        self._bid_ask_percents_neuroinputs_k = bid_ask_percents_neuroinputs_k
+        self._bid_ask_points_neuroinputs_resolution = bid_ask_points_neuroinputs_resolution
+        self._bid_ask_points_neuroinputs_k = bid_ask_points_neuroinputs_k
         self._look_forward_ticks = look_forward_ticks
         self._state = tsState()
         self._zigzag = self.create_zigzag()
@@ -318,9 +322,13 @@ class TradingState:
             'date': [],
             'bid_percent': [],
             'ask_percent': [],
+            'mid_percent': [],
+            'spread_percent': [],
             'ema_percent': [],
             'bid_points': [],
             'ask_points': [],
+            'mid_points': [],
+            'spread_points': [],
             'ema_points': []
         }
     
@@ -387,8 +395,11 @@ class TradingState:
         result[onehot_index] = 1
         return result
 
-    def calc_bid_ask_neuroinput_value(self, value):
-        return self.one_hot_encode(resolution=self._bid_ask_neuroinputs_resolution * 2 + 1, value=value, k=self._bid_ask_neuroinputs_k, zero_value=self._bid_ask_neuroinputs_resolution + 1)
+    def calc_bid_ask_percents_neuroinput_value(self, value):
+        return self.one_hot_encode(resolution=self._bid_ask_percents_neuroinputs_resolution * 2 + 1, value=value, k=self._bid_ask_percents_neuroinputs_k, zero_value=self._bid_ask_percents_neuroinputs_resolution + 1)
+
+    def calc_bid_ask_points_neuroinput_value(self, value):
+        return self.one_hot_encode(resolution=self._bid_ask_points_neuroinputs_resolution * 2 + 1, value=value, k=self._bid_ask_points_neuroinputs_k, zero_value=self._bid_ask_points_neuroinputs_resolution + 1)
 
     def get_backward_ticks_csv(self, ticks_count=None):
         if ticks_count is None:
@@ -468,11 +479,24 @@ class TradingState:
             self._ticks['mid'].insert(0, (self._ticks_history.ask + self._ticks_history.bid) / 2)
             self._ticks['spread'].insert(0, self._ticks_history.ask - self._ticks_history.bid)
 
+            self._neuroinputs['date'].insert(0, self._ticks_history.date)
+
             if cur_tick_index <= max_ticks_percents_day_index:
                 self._ticks['bid_percent'].insert(0, ticks_percents_day['bid'][cur_tick_index])
                 self._ticks['ask_percent'].insert(0, ticks_percents_day['ask'][cur_tick_index])
                 self._ticks['mid_percent'].insert(0, ticks_percents_day['mid'][cur_tick_index])
                 self._ticks['spread_percent'].insert(0, self._ticks_history.ask / self._ticks_history.bid - 1)
+                
+                self._neuroinputs['bid_percent'].insert(0, self.calc_bid_ask_percents_neuroinput_value(self._ticks['bid_percent'][0]))
+                self._neuroinputs['ask_percent'].insert(0, self.calc_bid_ask_percents_neuroinput_value(self._ticks['ask_percent'][0]))
+            else:
+                self._ticks['bid_percent'].insert(0, None)
+                self._ticks['ask_percent'].insert(0, None)
+                self._ticks['mid_percent'].insert(0, None)
+                self._ticks['spread_percent'].insert(0, None)
+
+                self._neuroinputs['bid_percent'].insert(0, None)
+                self._neuroinputs['ask_percent'].insert(0, None)
 
             if cur_tick_index <= max_ticks_points_day_index:
                 self._ticks['bid_points'].insert(0, ticks_points_day['bid'][cur_tick_index])
@@ -480,13 +504,22 @@ class TradingState:
                 self._ticks['mid_points'].insert(0, ticks_points_day['mid'][cur_tick_index])
                 self._ticks['spread_points'].insert(0, int((self._ticks_history.ask - self._ticks_history.bid) * price_to_points_k))
 
-            if cur_tick_index <= max_ema_day_index:
-                self._ema['date'].insert(0, ema_day['date'][cur_tick_index])
-                self._ema['price'].insert(0, ema_day['price'][cur_tick_index])
+                self._neuroinputs['bid_points'].insert(0, self.calc_bid_ask_points_neuroinput_value(self._ticks['bid_points'][0]))
+                self._neuroinputs['ask_points'].insert(0, self.calc_bid_ask_points_neuroinput_value(self._ticks['ask_points'][0]))
+            else:
+                self._ticks['bid_points'].insert(0, None)
+                self._ticks['ask_points'].insert(0, None)
+                self._ticks['mid_points'].insert(0, None)
+                self._ticks['spread_points'].insert(0, None)
 
-            self._neuroinputs['date'].insert(0, self._ticks_history.date)
-            self._neuroinputs['bid_percent'].insert(0, self.calc_bid_ask_neuroinput_value(self._ticks['bid_percent'][0]))
-            self._neuroinputs['ask_percent'].insert(0, self.calc_bid_ask_neuroinput_value(self._ticks['ask_percent'][0]))
+                self._neuroinputs['bid_points'].insert(0, None)
+                self._neuroinputs['ask_points'].insert(0, None)
+
+            self._ema['date'].insert(0, ema_day['date'][cur_tick_index])
+            if cur_tick_index <= max_ema_day_index:
+                self._ema['price'].insert(0, ema_day['price'][cur_tick_index])
+            else:
+                self._ema['price'].insert(0, None)
 
             loaded_ticks_len += 1
 
@@ -658,33 +691,25 @@ class TradingState:
         axes.plot(self._forward_ticks['date'], self._forward_ticks['bid_percent'], color=forward_bid_color)
         axes.plot(self._forward_ticks['date'], self._forward_ticks['ask_percent'], color=forward_ask_color)
 
+    def plot_ticks_bid_ask_points(self, axes, labels_and_grid=True, background_color='white', bid_color='blue', ask_color='red', forward_bid_color='darkblue', forward_ask_color='darkred'):
+        self.prepare_plot_axes(axes, labels_and_grid=labels_and_grid, background_color=background_color)
+        axes.set_title(label="Bid/Ask points", pad=-6, fontdict={'fontsize': 8})
+        axes.plot(self._ticks['date'], self._ticks['bid_points'], color=bid_color, alpha=0.75)
+        axes.plot(self._ticks['date'], self._ticks['ask_points'], color=ask_color, alpha=0.75)
+        max_tick_index = len(self._ticks['date']) - 1
+        axes.plot([self._ticks['date'][max_tick_index], self._forward_ticks['date'][0]], [self._ticks['bid_points'][max_tick_index], self._forward_ticks['bid_points'][0]], color=forward_bid_color)
+        axes.plot([self._ticks['date'][max_tick_index], self._forward_ticks['date'][0]], [self._ticks['ask_points'][max_tick_index], self._forward_ticks['ask_points'][0]], color=forward_bid_color)
+        axes.plot(self._forward_ticks['date'], self._forward_ticks['bid_points'], color=forward_bid_color)
+        axes.plot(self._forward_ticks['date'], self._forward_ticks['ask_points'], color=forward_ask_color)
+
     def get_onehot_index(self, onehot):
         return onehot.index(max(onehot))
 
-    def plot_ticks_bid_ask_neuroinputs_values(self, axes, dates, values, forward_dates, labels_and_grid=True, background_color='white', color='blue', forward_color='darkblue'):
-        self.prepare_plot_axes(axes, labels_and_grid=labels_and_grid, background_color=background_color)
-        ticks_values = []
-        for value in values:
-            ticks_values.append(self.get_onehot_index(value))
-        axes.set_ylim(0, len(ticks_values[0]) - 1)
-        start_date = dates[0]
-        forward_dates_len = len(forward_dates)
-        if forward_dates_len > 0:
-            end_date = forward_dates[forward_dates_len - 1]
-        else:
-            end_date = dates[len(dates) - 1]
-        axes.plot([start_date, end_date], [self._bid_ask_neuroinputs_resolution + 1, self._bid_ask_neuroinputs_resolution + 1], color='gray')
-        axes.plot(dates, ticks_values, color=color)
-        forward_values = []
-        for n in range(len(forward_dates)):
-            forward_values.append(0)
-        axes.plot(forward_dates, forward_values, color=forward_color, alpha=0)
-
-    def plot_ticks_bid_ask_neuroinputs(self, axes, labels_and_grid=True, background_color='white', bid_color='blue', ask_color='red', forward_bid_color='darkblue', forward_ask_color='darkred'):
+    def plot_ticks_bid_ask_percents_neuroinputs(self, axes, labels_and_grid=True, background_color='white', bid_color='blue', ask_color='red', forward_bid_color='darkblue', forward_ask_color='darkred'):
         dates = self._neuroinputs['date']
         forward_dates = self._forward_ticks['date']
         self.prepare_plot_axes(axes, labels_and_grid=labels_and_grid, background_color=background_color)
-        axes.set_title(label="Bid/Ask neuroinputs", pad=-6, fontdict={'fontsize': 8})
+        axes.set_title(label="Bid/Ask percents neuroinputs", pad=-6, fontdict={'fontsize': 8})
         bid_values = []
         ask_values = []
         for tick_index in range(len(self._neuroinputs['date'])):
@@ -697,7 +722,32 @@ class TradingState:
             end_date = forward_dates[forward_dates_len - 1]
         else:
             end_date = dates[len(dates) - 1]
-        axes.plot([start_date, end_date], [self._bid_ask_neuroinputs_resolution + 1, self._bid_ask_neuroinputs_resolution + 1], color='gray')
+        axes.plot([start_date, end_date], [self._bid_ask_percents_neuroinputs_resolution + 1, self._bid_ask_percents_neuroinputs_resolution + 1], color='gray')
+        axes.plot(dates, bid_values, color=bid_color, alpha=0.75)
+        axes.plot(dates, ask_values, color=ask_color, alpha=0.75)
+        forward_values = []
+        for n in range(len(forward_dates)):
+            forward_values.append(0)
+        axes.plot(forward_dates, forward_values, color=forward_bid_color, alpha=0)
+
+    def plot_ticks_bid_ask_points_neuroinputs(self, axes, labels_and_grid=True, background_color='white', bid_color='blue', ask_color='red', forward_bid_color='darkblue', forward_ask_color='darkred'):
+        dates = self._neuroinputs['date']
+        forward_dates = self._forward_ticks['date']
+        self.prepare_plot_axes(axes, labels_and_grid=labels_and_grid, background_color=background_color)
+        axes.set_title(label="Bid/Ask points neuroinputs", pad=-6, fontdict={'fontsize': 8})
+        bid_values = []
+        ask_values = []
+        for tick_index in range(len(self._neuroinputs['date'])):
+            bid_values.append(self.get_onehot_index(self._neuroinputs['bid_points'][tick_index]))
+            ask_values.append(self.get_onehot_index(self._neuroinputs['ask_points'][tick_index]))
+        axes.set_ylim(0, len(self._neuroinputs['bid_points'][0]) - 1)
+        start_date = dates[0]
+        forward_dates_len = len(forward_dates)
+        if forward_dates_len > 0:
+            end_date = forward_dates[forward_dates_len - 1]
+        else:
+            end_date = dates[len(dates) - 1]
+        axes.plot([start_date, end_date], [self._bid_ask_percents_neuroinputs_resolution + 1, self._bid_ask_percents_neuroinputs_resolution + 1], color='gray')
         axes.plot(dates, bid_values, color=bid_color, alpha=0.75)
         axes.plot(dates, ask_values, color=ask_color, alpha=0.75)
         forward_values = []
