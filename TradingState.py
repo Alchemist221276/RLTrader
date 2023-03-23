@@ -307,6 +307,7 @@ class TradingState:
             'ask': [],
             'mid': [],
             'spread': [],
+            'zigzag_prev_price': [],
             'zigzag_next_price': [],
             'bid_percent': [],
             'ask_percent': [],
@@ -449,24 +450,55 @@ class TradingState:
 
             cur_tick_index2 += 1
 
-    def get_next_zigzag_price(self, search_params):
+    def get_prev_zigzag_price(self, search_params):
         if search_params['point_index'] is None:
-            for cur_point_index in range(len(self._zigzag['date'])):
-                if (self._zigzag['date'][cur_point_index].date() == search_params['date'].date() and self._zigzag['tick_index'][cur_point_index] > search_params['tick_index']) or (self._zigzag['date'][cur_point_index].date() > search_params['date'].date()):
-                    if search_params['direction'] < 0:
+            for cur_point_index in range(len(self._zigzag['date']) - 1, -1, -1):
+                if (self._zigzag['date'][cur_point_index].date() == search_params['date'].date() and self._zigzag['tick_index'][cur_point_index] < search_params['tick_index']) or self._zigzag['date'][cur_point_index].date() < search_params['date'].date():
+                    if search_params['direction'] != 0:
                         search_params['point_index'] = cur_point_index
                     return self._zigzag['price'][cur_point_index]
         else:
-            #TODO: Write optimization in TradingState.get_next_zigzag_price() for backward calculation
+            cur_point_index = search_params['point_index']
             if search_params['direction'] < 0:
-                cur_point_index = search_params['point_index']
+                if (self._zigzag['date'][cur_point_index].date() == search_params['date'].date() and self._zigzag['tick_index'][cur_point_index] >= search_params['tick_index']) or self._zigzag['date'][cur_point_index].date() > search_params['date'].date():
+                    if cur_point_index > 0:
+                        cur_point_index -= 1
+                        search_params['point_index'] = cur_point_index
+                        return self._zigzag['price'][cur_point_index]
+                    return None
+                return self._zigzag['price'][cur_point_index]
+            elif search_params['direction'] > 0:
+                if cur_point_index < len(self._zigzag['date']) - 1:
+                    next_point_index = cur_point_index + 1
+                    if (self._zigzag['date'][next_point_index].date() == search_params['date'].date() and self._zigzag['tick_index'][next_point_index] < search_params['tick_index']) or self._zigzag['date'][next_point_index].date() < search_params['date'].date():
+                        search_params['point_index'] = next_point_index
+                        return self._zigzag['price'][next_point_index]
+                return self._zigzag['price'][cur_point_index]
+        return None
+
+    def get_next_zigzag_price(self, search_params):
+        if search_params['point_index'] is None:
+            for cur_point_index in range(len(self._zigzag['date'])):
+                if (self._zigzag['date'][cur_point_index].date() == search_params['date'].date() and self._zigzag['tick_index'][cur_point_index] > search_params['tick_index']) or self._zigzag['date'][cur_point_index].date() > search_params['date'].date():
+                    if search_params['direction'] != 0:
+                        search_params['point_index'] = cur_point_index
+                    return self._zigzag['price'][cur_point_index]
+        else:
+            cur_point_index = search_params['point_index']
+            if search_params['direction'] < 0:
                 if cur_point_index > 0:
                     prev_point_index = cur_point_index - 1
                     if (self._zigzag['date'][prev_point_index].date() == search_params['date'].date() and self._zigzag['tick_index'][prev_point_index] > search_params['tick_index']) or (self._zigzag['date'][prev_point_index].date() > search_params['date'].date()):
                         search_params['point_index'] = prev_point_index
                         return self._zigzag['price'][prev_point_index]
                 return self._zigzag['price'][cur_point_index]
-            #TODO: Write optimization in TradingState.get_next_zigzag_price() for forward calculation
+            elif search_params['direction'] > 0:
+                if (self._zigzag['date'][cur_point_index].date() == search_params['date'].date() and self._zigzag['tick_index'][cur_point_index] > search_params['tick_index']) or (self._zigzag['date'][cur_point_index].date() > search_params['date'].date()):
+                    return self._zigzag['price'][cur_point_index]
+                if cur_point_index < len(self._zigzag['date']) - 1:
+                    cur_point_index += 1
+                    search_params['point_index'] = cur_point_index
+                    return self._zigzag['price'][cur_point_index]
         return None
 
     def get_backward_ticks(self, ticks_count=None):
@@ -495,7 +527,13 @@ class TradingState:
         ema_day = self.load_ema_day()
         max_ema_day_index = len(ema_day['date']) - 1
 
-        zigzag_point_search_params = {
+        zigzag_next_point_search_params = {
+            'direction': -1,
+            'date': self._ticks_history.date,
+            'tick_index': self._ticks_history.tick_index,
+            'point_index': None
+        }
+        zigzag_prev_point_search_params = {
             'direction': -1,
             'date': self._ticks_history.date,
             'tick_index': self._ticks_history.tick_index,
@@ -546,16 +584,18 @@ class TradingState:
                 self._neuroinputs['bid_points'].insert(0, None)
                 self._neuroinputs['ask_points'].insert(0, None)
 
-            zigzag_point_search_params['date'] = self._ticks_history.date
-            zigzag_point_search_params['tick_index'] = self._ticks_history.tick_index
-            zigzag_next_price = self.get_next_zigzag_price(zigzag_point_search_params)
+            zigzag_next_point_search_params['date'] = self._ticks_history.date
+            zigzag_next_point_search_params['tick_index'] = self._ticks_history.tick_index
+            zigzag_next_price = self.get_next_zigzag_price(zigzag_next_point_search_params)
             self._ticks['zigzag_next_price'].insert(0, zigzag_next_price)
 
+            zigzag_prev_point_search_params['date'] = self._ticks_history.date
+            zigzag_prev_point_search_params['tick_index'] = self._ticks_history.tick_index
+            zigzag_prev_price = self.get_prev_zigzag_price(zigzag_prev_point_search_params)
+            self._ticks['zigzag_prev_price'].insert(0, zigzag_prev_price)
+
             self._ema['date'].insert(0, ema_day['date'][cur_tick_index])
-            if cur_tick_index <= max_ema_day_index:
-                self._ema['price'].insert(0, ema_day['price'][cur_tick_index])
-            else:
-                self._ema['price'].insert(0, None)
+            self._ema['price'].insert(0, ema_day['price'][cur_tick_index])
 
             loaded_ticks_len += 1
 
@@ -634,7 +674,13 @@ class TradingState:
 
         self._ticks_history.tick_index = cur_tick_index
 
-        zigzag_point_search_params = {
+        zigzag_next_point_search_params = {
+            'direction': 1,
+            'date': self._ticks_history.date,
+            'tick_index': self._ticks_history.tick_index,
+            'point_index': None
+        }
+        zigzag_prev_point_search_params = {
             'direction': 1,
             'date': self._ticks_history.date,
             'tick_index': self._ticks_history.tick_index,
@@ -658,10 +704,15 @@ class TradingState:
                 self._forward_ticks['ask_points'].append(ticks_points_day['ask'][cur_tick_index])
                 self._forward_ticks['mid_points'].append(ticks_points_day['mid'][cur_tick_index])
 
-            zigzag_point_search_params['date'] = self._ticks_history.date
-            zigzag_point_search_params['tick_index'] = self._ticks_history.tick_index
-            zigzag_next_price = self.get_next_zigzag_price(zigzag_point_search_params)
+            zigzag_next_point_search_params['date'] = self._ticks_history.date
+            zigzag_next_point_search_params['tick_index'] = self._ticks_history.tick_index
+            zigzag_next_price = self.get_next_zigzag_price(zigzag_next_point_search_params)
             self._forward_ticks['zigzag_next_price'].append(zigzag_next_price)
+
+            zigzag_prev_point_search_params['date'] = self._ticks_history.date
+            zigzag_prev_point_search_params['tick_index'] = self._ticks_history.tick_index
+            zigzag_prev_price = self.get_prev_zigzag_price(zigzag_prev_point_search_params)
+            self._forward_ticks['zigzag_prev_price'].append(zigzag_prev_price)
 
             if cur_tick_index <= max_ema_day_index:
                 self._ema['date'].append(ema_day['date'][cur_tick_index])
@@ -708,7 +759,7 @@ class TradingState:
             axes.grid(True)
             axes.margins(x=0)
 
-    def plot_ticks_bid_ask_prices(self, axes, labels_and_grid=True, background_color='white', bid_color='blue', ask_color='red', mid_color='gray', forward_bid_color='darkblue', forward_ask_color='darkred', forward_mid_color='darkgray', zigzag_color='green', zigzag_next_price_color='brown'):
+    def plot_ticks_bid_ask_prices(self, axes, labels_and_grid=True, background_color='white', bid_color='blue', ask_color='red', mid_color='gray', forward_bid_color='darkblue', forward_ask_color='darkred', forward_mid_color='darkgray', zigzag_color='green', zigzag_next_price_color='cyan', zigzag_prev_price_color='darkcyan'):
         max_tick_index = len(self._ticks['date']) - 1
 
         self.prepare_plot_axes(axes, labels_and_grid=labels_and_grid, background_color=background_color)
@@ -727,6 +778,8 @@ class TradingState:
         axes.plot(self._zigzag['date'], self._zigzag['price'], color=zigzag_color, alpha=0.75)
         axes.plot(self._ticks['date'], self._ticks['zigzag_next_price'], color=zigzag_next_price_color, alpha=0.75)
         axes.plot(self._forward_ticks['date'], self._forward_ticks['zigzag_next_price'], color=zigzag_next_price_color, alpha=0.75)
+        axes.plot(self._ticks['date'], self._ticks['zigzag_prev_price'], color=zigzag_prev_price_color, alpha=0.75)
+        axes.plot(self._forward_ticks['date'], self._forward_ticks['zigzag_prev_price'], color=zigzag_prev_price_color, alpha=0.75)
 
         axes.plot(self._ema['date'], self._ema['price'], color='orange', alpha=0.75)
 
@@ -1087,7 +1140,7 @@ class TradingState:
         cur_tick_index = 0
         self.call_next_day_notify()
 
-        ema = self.create_ema()
+        ema_day = self.create_ema()
         prev_ema = None
         while True:
             self._ticks_history.tick_index = cur_tick_index
@@ -1098,23 +1151,21 @@ class TradingState:
             else:
                 ema = mid_price
 
-            ema['date'].append(self._ticks_history.date)
-            ema['price'].append(ema)
+            ema_day['date'].append(self._ticks_history.date)
+            ema_day['price'].append(ema)
 
             prev_ema = ema
 
             cur_tick_index += 1
             if cur_tick_index >= ticks_len:
-                self.save_ema_day(ema, "{}".format(self._ema_period))
+                self.save_ema_day(ema_day, "{}".format(self._ema_period))
 
                 if not self._ticks_history.go_to_next_day():
                     break
                 ticks_len = len(self._ticks_history)
                 cur_tick_index = 0
-                self._ema = self.create_ema()
+                ema_day = self.create_ema()
                 self.call_next_day_notify()
-
-        #TODO: Test TradingHistory.recalc_ema()
 
     def get_ema_filename(self, filename_postfix):
         return self._ticks_history.data_files_folder + "/ema_" + filename_postfix + "_{:4d}-{:02d}-{:02d}.pkl".format(self._ticks_history.date.year, self._ticks_history.date.month, self._ticks_history.date.day)
