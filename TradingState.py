@@ -450,6 +450,39 @@ class TradingState:
 
             cur_tick_index2 += 1
 
+    def get_forward_ticks_csv(self, ticks_count=None):
+        if ticks_count is None:
+            ticks_count = self._look_forward_ticks
+
+        self._forward_ticks = self.create_ticks()
+
+        self.set_ticks_history_position()
+
+        cur_tick_index = self._tick_index + 1
+        base_bid = self._ticks_history.bid
+        base_ask = self._ticks_history.ask
+        max_tick_index = len(self._ticks_history) - 1
+        self._ticks_history.tick_index = cur_tick_index
+        loaded_ticks_len = 0
+        while loaded_ticks_len < ticks_count:
+            self._ticks_history.tick_index = cur_tick_index
+            self._forward_ticks['date'].append(self._ticks_history.date)
+            self._forward_ticks['bid'].append(self._ticks_history.bid)
+            self._forward_ticks['ask'].append(self._ticks_history.ask)
+            self._forward_ticks['bid_percent'].append(self._ticks_history.bid / base_bid - 1)
+            self._forward_ticks['ask_percent'].append(self._ticks_history.ask / base_ask - 1)
+            base_bid = self._ticks_history.bid
+            base_ask = self._ticks_history.ask
+            loaded_ticks_len += 1
+
+            cur_tick_index += 1
+            if cur_tick_index > max_tick_index:
+                if self._ticks_history.go_to_next_day():
+                    max_tick_index = len(self._ticks_history) - 1
+                    cur_tick_index = 0
+                else:
+                    break
+
     def get_prev_zigzag_price(self, search_params):
         if search_params['point_index'] is None:
             for cur_point_index in range(len(self._zigzag['date']) - 1, -1, -1):
@@ -519,13 +552,8 @@ class TradingState:
         cur_tick_index = self._tick_index
 
         ticks_percents_day = self.load_ticks_percents_day()
-        max_ticks_percents_day_index = len(ticks_percents_day['date']) - 1
-
         ticks_points_day = self.load_ticks_points_day()
-        max_ticks_points_day_index = len(ticks_points_day['date']) - 1
-
         ema_day = self.load_ema_day()
-        max_ema_day_index = len(ema_day['date']) - 1
 
         zigzag_next_point_search_params = {
             'direction': -1,
@@ -550,39 +578,21 @@ class TradingState:
 
             self._neuroinputs['date'].insert(0, self._ticks_history.date)
 
-            if cur_tick_index <= max_ticks_percents_day_index:
-                self._ticks['bid_percent'].insert(0, ticks_percents_day['bid'][cur_tick_index])
-                self._ticks['ask_percent'].insert(0, ticks_percents_day['ask'][cur_tick_index])
-                self._ticks['mid_percent'].insert(0, ticks_percents_day['mid'][cur_tick_index])
-                self._ticks['spread_percent'].insert(0, self._ticks_history.ask / self._ticks_history.bid - 1)
+            self._ticks['bid_percent'].insert(0, ticks_percents_day['bid'][cur_tick_index])
+            self._ticks['ask_percent'].insert(0, ticks_percents_day['ask'][cur_tick_index])
+            self._ticks['mid_percent'].insert(0, ticks_percents_day['mid'][cur_tick_index])
+            self._ticks['spread_percent'].insert(0, self._ticks_history.ask / self._ticks_history.bid - 1)
                 
-                self._neuroinputs['bid_percent'].insert(0, self.calc_bid_ask_percents_neuroinput_value(self._ticks['bid_percent'][0]))
-                self._neuroinputs['ask_percent'].insert(0, self.calc_bid_ask_percents_neuroinput_value(self._ticks['ask_percent'][0]))
-            else:
-                self._ticks['bid_percent'].insert(0, None)
-                self._ticks['ask_percent'].insert(0, None)
-                self._ticks['mid_percent'].insert(0, None)
-                self._ticks['spread_percent'].insert(0, None)
+            self._neuroinputs['bid_percent'].insert(0, self.calc_bid_ask_percents_neuroinput_value(self._ticks['bid_percent'][0]))
+            self._neuroinputs['ask_percent'].insert(0, self.calc_bid_ask_percents_neuroinput_value(self._ticks['ask_percent'][0]))
 
-                self._neuroinputs['bid_percent'].insert(0, None)
-                self._neuroinputs['ask_percent'].insert(0, None)
+            self._ticks['bid_points'].insert(0, ticks_points_day['bid'][cur_tick_index])
+            self._ticks['ask_points'].insert(0, ticks_points_day['ask'][cur_tick_index])
+            self._ticks['mid_points'].insert(0, ticks_points_day['mid'][cur_tick_index])
+            self._ticks['spread_points'].insert(0, int((self._ticks_history.ask - self._ticks_history.bid) * price_to_points_k))
 
-            if cur_tick_index <= max_ticks_points_day_index:
-                self._ticks['bid_points'].insert(0, ticks_points_day['bid'][cur_tick_index])
-                self._ticks['ask_points'].insert(0, ticks_points_day['ask'][cur_tick_index])
-                self._ticks['mid_points'].insert(0, ticks_points_day['mid'][cur_tick_index])
-                self._ticks['spread_points'].insert(0, int((self._ticks_history.ask - self._ticks_history.bid) * price_to_points_k))
-
-                self._neuroinputs['bid_points'].insert(0, self.calc_bid_ask_points_neuroinput_value(self._ticks['bid_points'][0]))
-                self._neuroinputs['ask_points'].insert(0, self.calc_bid_ask_points_neuroinput_value(self._ticks['ask_points'][0]))
-            else:
-                self._ticks['bid_points'].insert(0, None)
-                self._ticks['ask_points'].insert(0, None)
-                self._ticks['mid_points'].insert(0, None)
-                self._ticks['spread_points'].insert(0, None)
-
-                self._neuroinputs['bid_points'].insert(0, None)
-                self._neuroinputs['ask_points'].insert(0, None)
+            self._neuroinputs['bid_points'].insert(0, self.calc_bid_ask_points_neuroinput_value(self._ticks['bid_points'][0]))
+            self._neuroinputs['ask_points'].insert(0, self.calc_bid_ask_points_neuroinput_value(self._ticks['ask_points'][0]))
 
             zigzag_next_point_search_params['date'] = self._ticks_history.date
             zigzag_next_point_search_params['tick_index'] = self._ticks_history.tick_index
@@ -606,48 +616,9 @@ class TradingState:
                     break
 
                 cur_tick_index = len(self._ticks_history) - 1
-
                 ticks_percents_day = self.load_ticks_percents_day()
-                max_ticks_percents_day_index = len(ticks_percents_day['date']) - 1
-
                 ticks_points_day = self.load_ticks_points_day()
-                max_ticks_points_day_index = len(ticks_points_day['date']) - 1
-
                 ema_day = self.load_ema_day()
-                max_ema_day_index = len(ema_day['date']) - 1
-
-    def get_forward_ticks_csv(self, ticks_count=None):
-        if ticks_count is None:
-            ticks_count = self._look_forward_ticks
-
-        self._forward_ticks = self.create_ticks()
-
-        self.set_ticks_history_position()
-
-        cur_tick_index = self._tick_index + 1
-        base_bid = self._ticks_history.bid
-        base_ask = self._ticks_history.ask
-        max_tick_index = len(self._ticks_history) - 1
-        self._ticks_history.tick_index = cur_tick_index
-        loaded_ticks_len = 0
-        while loaded_ticks_len < ticks_count:
-            self._ticks_history.tick_index = cur_tick_index
-            self._forward_ticks['date'].append(self._ticks_history.date)
-            self._forward_ticks['bid'].append(self._ticks_history.bid)
-            self._forward_ticks['ask'].append(self._ticks_history.ask)
-            self._forward_ticks['bid_percent'].append(self._ticks_history.bid / base_bid - 1)
-            self._forward_ticks['ask_percent'].append(self._ticks_history.ask / base_ask - 1)
-            base_bid = self._ticks_history.bid
-            base_ask = self._ticks_history.ask
-            loaded_ticks_len += 1
-
-            cur_tick_index += 1
-            if cur_tick_index > max_tick_index:
-                if self._ticks_history.go_to_next_day():
-                    max_tick_index = len(self._ticks_history) - 1
-                    cur_tick_index = 0
-                else:
-                    break
 
     def get_forward_ticks(self, ticks_count=None):
         if self._ticks_history.cur_file_ext == ".csv":
@@ -664,13 +635,8 @@ class TradingState:
         cur_tick_index = self._tick_index + 1
 
         ticks_percents_day = self.load_ticks_percents_day()
-        max_ticks_percents_day_index = len(ticks_percents_day['date'])
-
         ticks_points_day = self.load_ticks_points_day()
-        max_ticks_points_day_index = len(ticks_points_day['date'])
-
         ema_day = self.load_ema_day()
-        max_ema_day_index = len(ema_day['date']) - 1
 
         self._ticks_history.tick_index = cur_tick_index
 
@@ -694,15 +660,13 @@ class TradingState:
             self._forward_ticks['ask'].append(self._ticks_history.ask)
             self._forward_ticks['mid'].append((self._ticks_history.bid + self._ticks_history.ask) / 2)
 
-            if cur_tick_index <= max_ticks_percents_day_index:
-                self._forward_ticks['bid_percent'].append(ticks_percents_day['bid'][cur_tick_index])
-                self._forward_ticks['ask_percent'].append(ticks_percents_day['ask'][cur_tick_index])
-                self._forward_ticks['mid_percent'].append(ticks_percents_day['mid'][cur_tick_index])
+            self._forward_ticks['bid_percent'].append(ticks_percents_day['bid'][cur_tick_index])
+            self._forward_ticks['ask_percent'].append(ticks_percents_day['ask'][cur_tick_index])
+            self._forward_ticks['mid_percent'].append(ticks_percents_day['mid'][cur_tick_index])
 
-            if cur_tick_index <= max_ticks_points_day_index:
-                self._forward_ticks['bid_points'].append(ticks_points_day['bid'][cur_tick_index])
-                self._forward_ticks['ask_points'].append(ticks_points_day['ask'][cur_tick_index])
-                self._forward_ticks['mid_points'].append(ticks_points_day['mid'][cur_tick_index])
+            self._forward_ticks['bid_points'].append(ticks_points_day['bid'][cur_tick_index])
+            self._forward_ticks['ask_points'].append(ticks_points_day['ask'][cur_tick_index])
+            self._forward_ticks['mid_points'].append(ticks_points_day['mid'][cur_tick_index])
 
             zigzag_next_point_search_params['date'] = self._ticks_history.date
             zigzag_next_point_search_params['tick_index'] = self._ticks_history.tick_index
@@ -714,9 +678,8 @@ class TradingState:
             zigzag_prev_price = self.get_prev_zigzag_price(zigzag_prev_point_search_params)
             self._forward_ticks['zigzag_prev_price'].append(zigzag_prev_price)
 
-            if cur_tick_index <= max_ema_day_index:
-                self._ema['date'].append(ema_day['date'][cur_tick_index])
-                self._ema['price'].append(ema_day['price'][cur_tick_index])
+            self._ema['date'].append(ema_day['date'][cur_tick_index])
+            self._ema['price'].append(ema_day['price'][cur_tick_index])
 
             loaded_ticks_len += 1
 
@@ -727,13 +690,8 @@ class TradingState:
                     cur_tick_index = 0
 
                     ticks_percents_day = self.load_ticks_percents_day()
-                    max_ticks_percents_day_index = len(ticks_percents_day['date'])
-
                     ticks_points_day = self.load_ticks_points_day()
-                    max_ticks_points_day_index = len(ticks_points_day['date'])
-
                     ema_day = self.load_ema_day()
-                    max_ema_day_index = len(ema_day['date']) - 1
                 else:
                     break
 
